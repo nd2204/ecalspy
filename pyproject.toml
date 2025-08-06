@@ -1,0 +1,26 @@
+[project]
+name = "ecalspy"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "nd2204",email = "dn200422@gmail.com"}
+]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "zstandard (>=0.23.0,<0.24.0)",
+    "google-api-python-client (>=2.178.0,<3.0.0)",
+    "google-auth-httplib2 (>=0.2.0,<0.3.0)",
+    "google-auth-oauthlib (>=1.2.2,<2.0.0)",
+    "beautifulsoup4 (>=4.13.4,<5.0.0)",
+    "browser-cookie3 (>=0.20.1,<0.21.0)",
+    "requests (>=2.32.4,<3.0.0)"
+]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+package-mode = false

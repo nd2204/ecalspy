@@ -2,6 +2,7 @@
 
 from datetime import date, timedelta
 import browser_cookie3
+import logging
 
 from ecalspy.core.es_cookie_manager import CookieManager
 from ecalspy.core.es_epu_api_client import EpuApiClient
@@ -38,6 +39,8 @@ def main(args):
         print("[-] Failed to load page:", response.status_code)
 
 if __name__ == "__main__":
+    logging.basicConfig(format='[%(asctime)s] |%(levelname)s|: %(message)s', datefmt='%Y-%m-%d %I:%M:%S',
+                        filename='runtine.log', filemode='a', level=logging.DEBUG)
     EsConfigManager.LoadConfigsFromFile()
     # TODO: implement args
     main(None)

@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 
 import os
 import sqlite3
+import logging
 
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
 
@@ -58,6 +59,20 @@ class GoogleCalendarApiClient:
     def RefreshCredentials(self) -> None:
         creds.refresh(Request())
 
+    def IsTimeSlotAvail(self, startTime: datetime, endTime: datetime) -> bool:
+        events_result = self.__Service.events().list(
+            calendarId="primary",
+            timeMin=startTime.isoformat() + "+07:00",
+            timeMax=endTime.isoformat() + "+07:00",
+            timeZone="UTC",
+            singleEvents=True,
+            orderBy="startTime"
+        ).execute()
+
+        events = events_result.get("items", [])
+        return len(events) == 0
+
+
     def CreateEvent(self, subject: str, startTime: datetime, endTime: datetime, description: str):
         event = {
             'summary': subject,
@@ -81,17 +96,25 @@ class GoogleCalendarApiClient:
         pprint(event)
         return self.__Service.events().insert(calendarId='primary', body=event).execute()
 
-    def CreateEventFromScheduleNode(self, node: ScheduleNode):
+    def CreateEventFromScheduleNode(self, node: ScheduleNode) -> int:
         subject = f"{PeriodToStr(node.unitPeriod)}: {node.moduleName} @ {node.room}"
         startTime = datetime.combine(node.date, node.timePeriod["start"])
         endTime = datetime.combine(node.date, node.timePeriod["end"])
 
-        self.CreateEvent(subject, startTime, endTime, str(node))
+        if self.IsTimeSlotAvail(startTime, endTime):
+            self.CreateEvent(subject, startTime, endTime, str(node))
+            return 1
+        else:
+            return 0
+
 
 def SyncCalendarWithWeekSchedule(client: GoogleCalendarApiClient, weekSched: WeekSchedule) -> None:
-    # for sched in weekSched.schedules:
-    #     client.CreateEventFromScheduleNode(sched)
-    CalendarDemo()
+    total = weekSched.count
+    succeeded = 0
+    for sched in weekSched.schedules:
+        succeeded = client.CreateEventFromScheduleNode(sched)
+    logging.info(f"SyncCalendarWithWeekSchedule:  {total} total, {succeeded} succeeded, {total - succeeded} failed")
+    # CalendarDemo()
 
 def CalendarDemo():
     """Shows basic usage of the Google Calendar API.

@@ -1,4 +1,4 @@
-from ecalspy.core.es_config_manager import EsConfigManager
+from ecalspy.core.es_config_manager import ConfigManager
 from ecalspy.core.es_utils import JsonSerializer
 from ecalspy.core.es_calendar import ScheduleNode, PeriodToStr, WeekSchedule
 
@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 
 import os
 import sqlite3
+import logging
 
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
 
@@ -21,11 +22,11 @@ AUTHORIZED_INFO_CONFIG_KEY = "GoogleCalendarAuthInfo"
 
 class GoogleCalendarApiClient:
     def __init__(self):
-        apiSecret = EsConfigManager.GetConfig(CALENDAR_API_SECRET_CONFIG_KEY)
+        apiSecret = ConfigManager.GetConfig(CALENDAR_API_SECRET_CONFIG_KEY)
         if not apiSecret:
-            EsConfigManager.PushConfig(CALENDAR_API_SECRET_CONFIG_KEY, "")
-            raise Exception(f"{CALENDAR_API_SECRET_CONFIG_KEY} is not provided in {EsConfigManager.CONFIG_FILENAME}")
-        userInfo = EsConfigManager.GetConfig(AUTHORIZED_INFO_CONFIG_KEY)
+            ConfigManager.PushConfig(CALENDAR_API_SECRET_CONFIG_KEY, "")
+            raise Exception(f"{CALENDAR_API_SECRET_CONFIG_KEY} is not provided in {ConfigManager.CONFIG_FILENAME}")
+        userInfo = ConfigManager.GetConfig(AUTHORIZED_INFO_CONFIG_KEY)
 
         self.__Creds = userInfo and Credentials.from_authorized_user_info(userInfo, SCOPES) or None
         self.__Service = None
@@ -39,7 +40,7 @@ class GoogleCalendarApiClient:
                 )
                 self.__Creds = flow.run_local_server(port=0)
             # Save the credentials for the next run
-            EsConfigManager.PushConfig(AUTHORIZED_INFO_CONFIG_KEY, JsonSerializer.Deserialize(self.__Creds.to_json(),
+            ConfigManager.PushConfig(AUTHORIZED_INFO_CONFIG_KEY, JsonSerializer.Deserialize(self.__Creds.to_json(),
                                                                                              decode=False))
         self.__Service = build("calendar", "v3", credentials=self.__Creds)
 
@@ -57,6 +58,23 @@ class GoogleCalendarApiClient:
 
     def RefreshCredentials(self) -> None:
         creds.refresh(Request())
+
+    def QueryEvents(self, startTime: datetime, endTime: datetime):
+        events_result = self.__Service.events().list(
+            calendarId="primary",
+            timeMin=startTime.isoformat() + "+07:00",
+            timeMax=endTime.isoformat() + "+07:00",
+            timeZone="UTC",
+            singleEvents=True,
+            orderBy="startTime"
+        ).execute()
+
+        events = events_result.get("items", [])
+        return events;
+
+    def IsTimeSlotAvail(self, startTime: datetime, endTime: datetime) -> bool:
+        events = self.QueryEvents(startTime, endTime)
+        return len(events) == 0
 
     def CreateEvent(self, subject: str, startTime: datetime, endTime: datetime, description: str):
         event = {
@@ -78,56 +96,10 @@ class GoogleCalendarApiClient:
             },
         }
 
-        pprint(event)
         return self.__Service.events().insert(calendarId='primary', body=event).execute()
 
-    def CreateEventFromScheduleNode(self, node: ScheduleNode):
+    def CreateEventFromScheduleNode(self, node: ScheduleNode) -> int:
         subject = f"{PeriodToStr(node.unitPeriod)}: {node.moduleName} @ {node.room}"
         startTime = datetime.combine(node.date, node.timePeriod["start"])
         endTime = datetime.combine(node.date, node.timePeriod["end"])
-
-        self.CreateEvent(subject, startTime, endTime, str(node))
-
-def SyncCalendarWithWeekSchedule(client: GoogleCalendarApiClient, weekSched: WeekSchedule) -> None:
-    # for sched in weekSched.schedules:
-    #     client.CreateEventFromScheduleNode(sched)
-    CalendarDemo()
-
-def CalendarDemo():
-    """Shows basic usage of the Google Calendar API.
-    Prints the start and name of the next 10 events on the user's calendar.
-    """
-    client = GoogleCalendarApiClient()
-
-    # If there are no (valid) credentials available, let the user log in.
-    try:
-        service = client.service
-
-        # Call the Calendar API
-        now = datetime.now(tz=timezone.utc).isoformat()
-        print("Getting the upcoming 10 events")
-        events_result = (
-            service.events()
-            .list(
-                calendarId="primary",
-                timeMin=now,
-                maxResults=10,
-                singleEvents=True,
-                orderBy="startTime",
-            )
-            .execute()
-        )
-        events = events_result.get("items", [])
-
-        if not events:
-            print("No upcoming events found.")
-            return
-
-        pprint(events[0])
-        # Prints the start and name of the next 10 events
-        for event in events:
-            start = event["start"].get("dateTime", event["start"].get("date"))
-            print(start, event["summary"])
-
-    except HttpError as error:
-        print(f"An error occurred: {error}")
+        return self.CreateEvent(subject, startTime, endTime, description=str(node))

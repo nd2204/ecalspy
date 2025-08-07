@@ -118,7 +118,7 @@ class WeekSchedule:
         self.__ScheduleNodes[dayInWeek][session].append(node);
         self.__ActiveCount += 1
 
-    def ToJson(self):
+    def ToDict(self):
         result = {}
         isEmpty = True
         for dayInWeek, dayNode in enumerate(self.__ScheduleNodes, start=0):
@@ -134,7 +134,10 @@ class WeekSchedule:
         if isEmpty:
             raise Exception("The schedule is empty!")
 
-        return JsonSerializer.Serialize(result)
+        return result
+
+    def ToJson(self, encode=True):
+        return JsonSerializer.Serialize(self.ToDict(), encode)
 
     def ToIcs():
         ...
@@ -142,7 +145,7 @@ class WeekSchedule:
     @staticmethod
     def GetDayInWeekStr(dayInWeek: int) -> str:
         assert dayInWeek >= 0 # Do not allow negative value
-        dayInWeekStrTuple = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
+        dayInWeekStrTuple = ("mon", "tues", "wed", "thurs", "fri", "sat", "sun")
         return dayInWeekStrTuple[dayInWeek]
 
     @staticmethod

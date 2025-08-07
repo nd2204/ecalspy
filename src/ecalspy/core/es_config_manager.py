@@ -2,7 +2,10 @@ from ecalspy.core.es_utils import JsonSerializer, FileExists
 
 import os
 
-class EsConfigManager:
+from pprint import pprint
+from json.decoder import JSONDecodeError
+
+class ConfigManager:
     __Config = {}
     __AutoFlush = True
     __Loaded = False
@@ -11,51 +14,78 @@ class EsConfigManager:
 
     @staticmethod
     def EnsureLoaded():
-        if not EsConfigManager.__Loaded:
-            EsConfigManager.LoadConfigsFromFile()
+        if not ConfigManager.__Loaded:
+            ConfigManager.LoadConfigsFromFile()
 
     @staticmethod
     def LoadConfigsFromFile(name=CONFIG_FILENAME) -> None:
         # make sure the config is flushed when reloading
-        if EsConfigManager.__Loaded:
-            EsConfigManager.FlushConfig()
+        if ConfigManager.__Loaded:
+            ConfigManager.FlushConfig()
             return
 
         if not FileExists(name):
-            EsConfigManager.FlushConfig()
+            ConfigManager.FlushConfig()
         else:
             with open(name, "r") as fp:
-                EsConfigManager.__Config = JsonSerializer.DeserializeFile(fp, False)
+                try:
+                    ConfigManager.__Config = JsonSerializer.DeserializeFile(fp, False)
+                except JSONDecodeError:
+                    pass
 
-        EsConfigManager.__Loaded = True
+        ConfigManager.__Loaded = True
 
-
-    @staticmethod
-    def PushConfig(key, value) -> None:
-        assert EsConfigManager.__Loaded
-
-        EsConfigManager.__Config[key] = value
-        if EsConfigManager.__AutoFlush:
-            EsConfigManager.FlushConfig()
 
     @staticmethod
-    def GetConfig(key) -> object:
-        assert EsConfigManager.__Loaded
+    def PushConfig(key: str, value: object) -> None:
+        ConfigManager.EnsureLoaded()
 
-        if key in EsConfigManager.__Config:
-            return EsConfigManager.__Config[key]
+        keys = key.split(".")
+        current = ConfigManager.__Config
+        for k in keys[:-1]:
+            if isinstance(current, dict) and k in current:
+                current = current[k]
+            else:
+                current[k] = {}
+
+        current[keys[-1]] = value
+
+        if ConfigManager.__AutoFlush:
+            ConfigManager.FlushConfig()
+
+    @staticmethod
+    def GetConfig(key: str) -> object:
+        ConfigManager.EnsureLoaded()
+
+        keys = [k.strip() for k in key.split(".")]
+        current = ConfigManager.__Config
+
+        for k in keys[:-1]:
+            if isinstance(current, dict) and k in current:
+                current = current[k]
+            else:
+                return None
+
+        if key in current:
+            return current[key]
         else:
             return None
 
     @staticmethod
-    def FlushConfig():
-        assert EsConfigManager.__Loaded
+    def CreateOrRetrieveConfig(key: str, valueOnCreate: object = "") -> None:
+        result = ConfigManager.GetConfig(key)
+        if not result:
+            ConfigManager.PushConfig(key, valueOnCreate)
+            return valueOnCreate
+        return result
 
-        with open(EsConfigManager.CONFIG_FILENAME, "w") as fp:
-            fp.write(JsonSerializer.Serialize(EsConfigManager.__Config, False))
+    @staticmethod
+    def FlushConfig():
+        assert ConfigManager.__Loaded
+
+        with open(ConfigManager.CONFIG_FILENAME, "w") as fp:
+            fp.write(JsonSerializer.Serialize(ConfigManager.__Config, False))
 
     @staticmethod
     def SetAutoFlush(enable: bool):
-        assert EsConfigManager.__Loaded
-
-        EsConfigManager.__AutoFlush = enable
+        ConfigManager.__AutoFlush = enable

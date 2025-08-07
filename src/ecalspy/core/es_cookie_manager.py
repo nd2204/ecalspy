@@ -2,9 +2,13 @@ import os
 import json
 import io
 import ecalspy.core.es_utils as Es
+import logging
+
+from ecalspy.core.es_db import *
 
 class CookieManager:
     COOKIE_CACHE_FILENAME = ".cookie-cache"
+    COOKIE_TABLE_NAME = "cookies"
 
     @staticmethod
     def LoadCookiesFromBrowsers():
@@ -32,6 +36,16 @@ class CookieManager:
     def ParseCookies(cookiesStr: str) -> dict:
         print(cookiesStr)
         return dict(pair.split('=') for pair in cookiesStr.split(';'))
+
+    @staticmethod
+    def AddCookie(cookie):
+        if not Es.FileExists(CookieManager.COOKIE_CACHE_FILENAME):
+            CookieManager.SaveCookies({cookie.name: cookie.value})
+        else:
+            with open(CookieManager.COOKIE_CACHE_FILENAME, "a") as fp:
+                fp.write(f";{cookie.name}={cookie.value}")
+                fp.flush()
+                logging.info("[+] Saved cookies to ./cookie-cache")
 
     @staticmethod
     def SaveCookies(cookieDict) -> None:

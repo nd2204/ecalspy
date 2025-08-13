@@ -6,7 +6,7 @@ from ecalspy.feat.es_google_calendar import GoogleCalendarApiClient
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from fastapi import FastAPI
+from fastapi import FastAPI, Response, Cookie
 import uvicorn
 
 import datetime as dt
@@ -17,19 +17,36 @@ app = FastAPI()
 scheduler = BackgroundScheduler()
 epuClient = EpuApiClient()
 
+from pydantic import BaseModel
+
+class Cookies(BaseModel):
+    pass
+
 # Define a route at the root web address ("/")
 @app.get("/")
 def ReadRoot():
-    return {"message": "Hello, FastAPI!"}
+    client = EpuApiClient()
+    for key, val in client.cookies.items():
+        response.set_cookie(key=f"{key}", value=f"{val}")
 
-@app.get("/api/calendar")
+@app.get("/api/v1/calendar")
 def GetThisWeekCalendar():
-    todayDate = dt.date.today()
-    nextWeekDate = todayDate + dt.timedelta(weeks=1)
-    response = epuClient.POST_GetDanhSachLichTheoTuan(nextWeekDate)
-    if response.ok:
-        sched = ParseCalendarResponse(response.text)
-        return sched.ToDict()
+    epuClient = EpuApiClient() 
+    # todayDate = dt.date.today()
+    # nextWeekDate = todayDate + dt.timedelta(weeks=1)
+    # response = epuClient.POST_GetDanhSachLichTheoTuan(nextWeekDate)
+    # if response.ok:
+    #     sched = ParseCalendarResponse(response.text)
+    #     return sched.ToDict()
+    return {}
+
+@app.get("/api/v1/captcha")
+def GetLoginCaptcha(response: Response):
+    return {"message": "Come to the dark side, we have cookies"}
+
+@app.post("/api/v1/login")
+def Login():
+    pass
 
 def ScheduleSyncToGoogleCalendar():
     calendarClient = GoogleCalendarApiClient()
@@ -44,7 +61,7 @@ def ScheduleSyncToGoogleCalendar():
         total = sched.count
         succeeded = 0
         for schedNode in sched.schedules:
-            events = calendarClient.QueryEvents(startTime, endTime)
+            events = calendarClient.QueryEventsFromSchedNodes(schedNode)
             if len(events) == 0:
                 event = calendarClient.CreateEventFromScheduleNode(schedNode)
                 succeeded += 1
@@ -66,12 +83,15 @@ if __name__ == "__main__":
         level=logging.DEBUG
     )
 
+    # ScheduleSyncToGoogleCalendar()
+
     scheduler.add_job(
         ScheduleSyncToGoogleCalendar,
         trigger=CronTrigger(day_of_week='mon', hour=9, minute=0,),
         id='GoogleCalendarSync'
     )
     scheduler.start()
+
     uvicorn.run(app, host="127.0.0.1", port=9999)
 
     ConfigManager.FlushConfig()

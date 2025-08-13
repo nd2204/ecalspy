@@ -59,6 +59,12 @@ class GoogleCalendarApiClient:
     def RefreshCredentials(self) -> None:
         creds.refresh(Request())
 
+    def QueryEventsFromSchedNodes(self, node: ScheduleNode):
+        startTime = datetime.combine(node.date, node.timePeriod["start"])
+        endTime = datetime.combine(node.date, node.timePeriod["end"])
+
+        return self.QueryEvents(startTime, endTime)
+
     def QueryEvents(self, startTime: datetime, endTime: datetime):
         events_result = self.__Service.events().list(
             calendarId="primary",

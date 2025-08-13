@@ -3,3 +3,4 @@ conf.json
 **/__pycache__
 poetry.lock
 *.log
+**/node_modules
